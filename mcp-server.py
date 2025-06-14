@@ -211,9 +211,12 @@ def search_documents(query: str) -> list[str]:
 
 @mcp.tool()
 def add(input: AddInput) -> AddOutput:
-    """Add two numbers"""
-    print("CALLED: add(AddInput) -> AddOutput")
-    return AddOutput(result=input.a + input.b)
+    print(f"MCP_SERVER: ADD TOOL CALLED with a={input.a}, b={input.b}", file=sys.stderr)
+    sys.stderr.flush()
+    res = input.a + input.b
+    print(f"MCP_SERVER: ADD TOOL RETURNING {res}", file=sys.stderr)
+    sys.stderr.flush()
+    return AddOutput(result=res)
 
 # subtraction tool
 @mcp.tool()
@@ -560,6 +563,7 @@ if __name__ == "__main__":
         server_thread = threading.Thread(target=run_server)
         server_thread.daemon = True
         server_thread.start()
+        
         
         # Wait a moment for the server to start
         time.sleep(2)

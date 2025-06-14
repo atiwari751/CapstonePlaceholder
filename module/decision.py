@@ -1,13 +1,14 @@
 import logging
 import json
 from typing import List, Dict, Any, Tuple, Optional
-
+import asyncio
 import google.generativeai as genai # Standard import for google-generativeai
+import os # For accessing environment variables
 
 logger = logging.getLogger(__name__)
 
 class Decision:
-    def __init__(self, tools_list: List[Any], model_name: str = "gemini-1.5-flash-latest"):
+    def __init__(self, tools_list: List[Any], model_name: str = "gemini-2.0-flash"):
         """
         Initializes the Decision module.
 
@@ -18,12 +19,20 @@ class Decision:
         """
         self.model_name = model_name
         try:
-            self.llm = genai.GenerativeModel(
-                model_name=self.model_name
-            )
-            logger.info(f"Decision module initialized with model: {self.model_name}")
+            # Explicitly load the API key from environment variable
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                logger.critical("CRITICAL: GEMINI_API_KEY environment variable not set or empty.")
+                # You might want to raise an exception here to halt initialization
+                # raise ValueError("GOOGLE_API_KEY not found in environment variables.")
+                self.llm = None # Ensure llm is None if API key is missing
+            else:
+                logger.info("GEMINI_API_KEY found. Configuring genai...")
+                genai.configure(api_key=api_key)
+                self.llm = genai.GenerativeModel(model_name=self.model_name)
+                logger.info(f"Decision module initialized with model: {self.model_name}")
         except Exception as e:
-            logger.error(f"Failed to initialize GenerativeModel: {e}")
+            logger.critical(f"CRITICAL: Failed to initialize GenerativeModel or configure API key: {e}", exc_info=True)
             self.llm = None # Ensure llm is None if initialization fails
 
         self.tools_list_for_prompt = self._format_tools_for_prompt(tools_list)
@@ -106,7 +115,7 @@ Your JSON Output:
 }}
 """
 
-    def execute_plan_with_memory(
+    async def execute_plan_with_memory(
         self,
         user_query: str,
         perception_data: Dict[str, Any], 
@@ -121,7 +130,7 @@ Your JSON Output:
             Tuple: thought, tool_name, tool_input, speak, memory_actions
         """
         if not self.llm:
-            logger.error("LLM not initialized. Cannot execute plan.")
+            logger.error("LLM not initialized in Decision module. Cannot execute plan. Check API key and initialization logs.")
             return "LLM not initialized.", "final_answer", {}, "Sorry, I'm having trouble thinking right now.", []
 
         prompt_parts = [self._get_system_prompt()]
@@ -157,9 +166,40 @@ Your JSON Output:
         logger.debug(f"Decision LLM Full Prompt (first 500 chars):\n{full_prompt[:500]}...")
 
         try:
-            response = self.llm.generate_content(full_prompt)
+            # Assuming your genai library has an async version or you run sync in executor
+            # For google-generativeai, you might use:
+            # response = await self.llm.generate_content_async(full_prompt)
+            # For now, if it's synchronous, we'd run it in an executor if called from async agent
+            # But it's better if the LLM call itself is awaitable.
+            # Let's assume self.llm.generate_content can be awaited or is run in executor if sync.
+            
+            # If self.llm.generate_content is synchronous:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, self.llm.generate_content, full_prompt) # This line makes the call
+            
             llm_response_text = response.candidates[0].content.parts[0].text
             logger.debug(f"LLM Raw Response Text:\n{llm_response_text}")
+
+            # --- Preprocess the LLM response to remove markdown formatting ---
+            llm_response_text = llm_response_text.strip()
+            
+            # Handle markdown code blocks first
+            if llm_response_text.startswith("```json"):
+                llm_response_text = llm_response_text[6:].strip() # Remove ```json
+                if llm_response_text.endswith("```"):
+                    llm_response_text = llm_response_text[:-3].strip() # Remove trailing ```
+            
+            # If not a markdown block, or after stripping markdown,
+            # try to find the actual JSON object within the string
+            if not llm_response_text.startswith("{"):
+                first_brace = llm_response_text.find("{")
+                if first_brace != -1:
+                    llm_response_text = llm_response_text[first_brace:]
+            
+            if not llm_response_text.endswith("}"):
+                last_brace = llm_response_text.rfind("}")
+                if last_brace != -1:
+                    llm_response_text = llm_response_text[:last_brace+1]
 
             parsed_response = json.loads(llm_response_text)
             thought = parsed_response.get("thought", "No thought process provided.")
@@ -173,7 +213,7 @@ Your JSON Output:
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM JSON response: {e}\nRaw response: {llm_response_text}")
             return f"Error: Could not parse LLM response. Raw: {llm_response_text}", "final_answer", {}, "I'm sorry, I had trouble understanding the response format.", []
-        except Exception as e:
+        except Exception as e: # Catching the genai API errors more specifically might be useful
             logger.error(f"Error in Decision LLM call: {e}")
             # Log specific Gemini API errors if available
             if hasattr(e, 'response') and hasattr(e.response, 'prompt_feedback'):

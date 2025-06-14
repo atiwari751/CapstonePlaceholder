@@ -2,7 +2,8 @@ import unittest
 import json
 import logging
 from unittest.mock import patch, MagicMock
-
+import asyncio
+ 
 from module.decision import Decision
 
 # Mock Tool class for testing _format_tools_for_prompt
@@ -26,6 +27,8 @@ class MockTool:
 class TestDecisionModule(unittest.TestCase):
 
     def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         logging.disable(logging.CRITICAL) # Suppress logs during tests
         self.mock_tool1 = MockTool(
             name="test_tool_1",
@@ -42,6 +45,7 @@ class TestDecisionModule(unittest.TestCase):
 
     def tearDown(self):
         logging.disable(logging.NOTSET) # Re-enable logging
+        self.loop.close()
 
     def test_format_tools_for_prompt(self):
         """Test the _format_tools_for_prompt method."""
@@ -81,20 +85,24 @@ class TestDecisionModule(unittest.TestCase):
             candidates=[MagicMock(content=MagicMock(parts=[MagicMock(text=mock_response_content)]))]
         )
 
-        decision_module = Decision(tools_list=self.tools_list, model_name="gemini-1.5-flash-latest")
-        thought, tool_name, tool_input, speak, memory_actions = decision_module.execute_plan_with_memory(
-            user_query="How are you?",
-            perception_data={}, # Placeholder for Phase 2
-            memory_context="Some facts here.",
-            full_conversation_history=[{"role": "user", "content": "Hi"}]
-        )
+        async def run_test():
+            decision_module = Decision(tools_list=self.tools_list, model_name="gemini-1.5-flash-latest")
+            # Await the coroutine
+            thought, tool_name, tool_input, speak, memory_actions = await decision_module.execute_plan_with_memory(
+                user_query="How are you?",
+                perception_data={}, 
+                memory_context="Some facts here.",
+                full_conversation_history=[{"role": "user", "content": "Hi"}]
+            )
 
-        self.assertEqual(thought, "User asked a simple question. No tool needed.")
-        self.assertEqual(tool_name, "final_answer")
-        self.assertEqual(tool_input, {})
-        self.assertEqual(speak, "I'm doing well, thank you for asking!")
-        self.assertEqual(memory_actions, [{"action": "store_fact", "key": "mood", "value": "happy"}])
-        mock_llm_instance.generate_content.assert_called_once()
+            self.assertEqual(thought, "User asked a simple question. No tool needed.")
+            self.assertEqual(tool_name, "final_answer")
+            self.assertEqual(tool_input, {})
+            self.assertEqual(speak, "I'm doing well, thank you for asking!")
+            self.assertEqual(memory_actions, [{"action": "store_fact", "key": "mood", "value": "happy"}])
+            mock_llm_instance.generate_content.assert_called_once() # If generate_content is sync
+            # If generate_content is async, you might need to mock its async version or how it's awaited
+        self.loop.run_until_complete(run_test())
 
     @patch('module.decision.genai.GenerativeModel') # Assuming decision.py uses 'import google.generativeai as genai'
     def test_execute_plan_with_memory_tool_call(self, MockGenerativeModel):
@@ -111,24 +119,27 @@ class TestDecisionModule(unittest.TestCase):
             candidates=[MagicMock(content=MagicMock(parts=[MagicMock(text=mock_response_content)]))]
         )
 
-        decision_module = Decision(tools_list=self.tools_list, model_name="gemini-1.5-flash-latest")
-        thought, tool_name, tool_input, speak, memory_actions = decision_module.execute_plan_with_memory(
-            user_query="Use test_tool_1 with hello and 123",
-            perception_data={},
-            memory_context="",
-            full_conversation_history=[]
-        )
+        async def run_test():
+            decision_module = Decision(tools_list=self.tools_list, model_name="gemini-1.5-flash-latest")
+            # Await the coroutine
+            thought, tool_name, tool_input, speak, memory_actions = await decision_module.execute_plan_with_memory(
+                user_query="Use test_tool_1 with hello and 123",
+                perception_data={},
+                memory_context="",
+                full_conversation_history=[]
+            )
 
-        self.assertEqual(tool_name, "test_tool_1")
-        self.assertEqual(tool_input, {"param1": "hello", "param2": 123})
-        self.assertEqual(speak, "Okay, I will use test_tool_1 for that.")
-        self.assertEqual(memory_actions, [])
-        mock_llm_instance.generate_content.assert_called_once()
-        # You can also assert that the prompt passed to generate_content contains expected parts
-        args, _ = mock_llm_instance.generate_content.call_args
-        prompt_sent_to_llm = args[0]
-        self.assertIn("Name: test_tool_1", prompt_sent_to_llm)
-        self.assertIn("User: Use test_tool_1 with hello and 123", prompt_sent_to_llm)
+            self.assertEqual(tool_name, "test_tool_1")
+            self.assertEqual(tool_input, {"param1": "hello", "param2": 123})
+            self.assertEqual(speak, "Okay, I will use test_tool_1 for that.")
+            self.assertEqual(memory_actions, [])
+            mock_llm_instance.generate_content.assert_called_once()
+            # You can also assert that the prompt passed to generate_content contains expected parts
+            args, _ = mock_llm_instance.generate_content.call_args
+            prompt_sent_to_llm = args[0]
+            self.assertIn("Name: test_tool_1", prompt_sent_to_llm)
+            self.assertIn("User: Use test_tool_1 with hello and 123", prompt_sent_to_llm)
+        self.loop.run_until_complete(run_test())
 
 if __name__ == '__main__':
     unittest.main()

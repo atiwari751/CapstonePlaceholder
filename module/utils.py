@@ -1,7 +1,8 @@
 import logging
 import sys
 
-DEFAULT_LOG_LEVEL = logging.INFO
+DEFAULT_LOG_LEVEL = logging.DEBUG
+
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 def setup_logging(level: int = DEFAULT_LOG_LEVEL, log_format: str = LOG_FORMAT) -> None:
@@ -12,6 +13,7 @@ def setup_logging(level: int = DEFAULT_LOG_LEVEL, log_format: str = LOG_FORMAT) 
         level (int): The logging level (e.g., logging.INFO, logging.DEBUG).
         log_format (str): The format string for log messages.
     """
+    #level = logging.DEBUG
     # Get the root logger
     root_logger = logging.getLogger()
 
