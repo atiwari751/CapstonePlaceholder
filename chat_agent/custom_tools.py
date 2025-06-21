@@ -1,7 +1,11 @@
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+from langchain_google_genai import ChatGoogleGenerativeAI
+import json
+import os
 
 from .client import mcp_client
+
 
 # Tool 1: Search documents
 @tool
@@ -30,29 +34,54 @@ def evaluate_building_schemes(description: str) -> str:
     and calculates the total manufacturing emissions for each scheme.
     Use this tool when a user asks to 'evaluate', 'compare', or 'analyze' building schemes.
     """
-    # a. Generate 2 different building schemes
-    # For demonstration, we'll use two hardcoded schemes.
-    schemes = [
-        {
-            "name": "Scheme A: Compact 10-Story",
-            "inputs": {"grid_spacing_x": 8, "grid_spacing_y": 8, "extents_x": 40, "extents_y": 32, "no_of_floors": 10}
-        },
-        {
-            "name": "Scheme B: Wider 8-Story",
-            "inputs": {"grid_spacing_x": 10, "grid_spacing_y": 10, "extents_x": 50, "extents_y": 40, "no_of_floors": 8}
-        }
-    ]
+    # a. Generate 2 different building schemes dynamically using an LLM
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-1.5-flash",
+            google_api_key=os.getenv("GEMINI_API_KEY"),
+            temperature=0.3,  # Allow for some creativity in scheme generation
+            model_kwargs={"response_mime_type": "application/json"},
+        )
+
+        generation_prompt = f"""
+        Based on the following building description, generate two distinct and plausible structural schemes.
+        Description: "{description}"
+        
+        For each scheme, provide a flat JSON object containing a descriptive 'name' and the following integer parameters:
+        - 'grid_spacing_x' (meters, typically between 6 and 12)
+        - 'grid_spacing_y' (meters, typically between 6 and 12)
+        - 'extents_x' (total building width in meters, must be a multiple of grid_spacing_x)
+        - 'extents_y' (total building length in meters, must be a multiple of grid_spacing_y)
+        - 'no_of_floors' (number of stories)
+        
+        Return ONLY a valid JSON object with a single key "schemes" which is a list of these two flat scheme objects. Do not include a nested 'inputs' object. Do not include ```json``` markers or any other text.
+        """
+        
+        response = llm.invoke(generation_prompt)
+        schemes_data = json.loads(response.content)
+        schemes = schemes_data["schemes"]
+        if not isinstance(schemes, list) or len(schemes) != 2:
+            raise ValueError("LLM did not return a list of two schemes.")
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        return f"Failed to generate or parse valid building schemes from the LLM. Error: {e}"
+    except Exception as e:
+        return f"An unexpected error occurred while generating schemes: {e}"
 
     scheme_results = []
 
     for scheme in schemes:
         try:
+            # Prepare inputs for the schemer tool by extracting numeric parameters.
+            # This is more robust than relying on the LLM to create a nested 'inputs' object.
+            schemer_inputs = {k: v for k, v in scheme.items() if k != 'name'}
+
             # a. Use ai_form_schemer to fetch tonnage data
-            tonnage_data = mcp_client.ai_form_schemer(**scheme["inputs"])
+            tonnage_data = mcp_client.ai_form_schemer(**schemer_inputs)
             if not tonnage_data.trustworthy:
                 print(f"Warning: Results for {scheme['name']} may not be trustworthy.")
 
-            scheme['steel_tonnage'] = tonnage_data.steel_tonnage
+            scheme['inputs'] = schemer_inputs # Store inputs for the final report
+            scheme['steel_tonnage'] = tonnage_data.steel_tonnage 
             scheme['concrete_tonnage'] = tonnage_data.concrete_tonnage
             scheme_results.append(scheme)
         except Exception as e:
