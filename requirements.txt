@@ -1,0 +1,10 @@
+langchain
+langchain-openai
+langchain-google-genai
+python-dotenv
+requests
+faiss-cpu
+numpy
+markitdown[pdf]
+tqdm
+Pillowexit
