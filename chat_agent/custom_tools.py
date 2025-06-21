@@ -9,12 +9,12 @@ from .client import mcp_client
 
 # Tool 1: Search documents
 @tool
-def search_sustainable_building_options(query: str) -> str:
+def search_building_case_studies(query: str) -> str:
     """
-    Searches internal documents for information on sustainable building options,
-    materials, or construction techniques. Use this when asked for general
-    information about sustainable buildings. Do not use it to find specific
-    commercial products.
+    Searches internal documents for case studies and information on building options,
+    materials, or construction techniques, including topics like waste management.
+    You MUST use this tool to answer any questions about building examples, case studies,
+    or specific construction methods. Do not answer from your own knowledge.
     """
     results = mcp_client.search_documents(query)
     if not results or "ERROR" in results[0]:
@@ -24,17 +24,18 @@ def search_sustainable_building_options(query: str) -> str:
 # Tool 2: Evaluate building schemes (the complex workflow)
 class BuildingSchemeInput(BaseModel):
     description: str = Field(..., description="A brief description of the building to be evaluated, e.g., 'a 10-story office building with a regular grid'.")
+    number_of_schemes: int = Field(2, description="The number of building schemes to generate and compare. Defaults to 2.")
 
 @tool(args_schema=BuildingSchemeInput)
-def evaluate_building_schemes(description: str) -> str:
+def evaluate_building_schemes(description: str, number_of_schemes: int = 2) -> str:
     """
-    Performs a full structural and environmental evaluation of two building schemes.
-    It generates two plausible structural schemes, calculates their steel and concrete tonnage,
+    Performs a full structural and environmental evaluation of multiple building schemes.
+    It generates a specified number of plausible structural schemes, calculates their steel and concrete tonnage,
     finds the lowest-emission materials from the 2050 Materials database,
     and calculates the total manufacturing emissions for each scheme.
     Use this tool when a user asks to 'evaluate', 'compare', or 'analyze' building schemes.
     """
-    # a. Generate 2 different building schemes dynamically using an LLM
+    # a. Generate building schemes dynamically using an LLM
     try:
         llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-flash",
@@ -44,24 +45,24 @@ def evaluate_building_schemes(description: str) -> str:
         )
 
         generation_prompt = f"""
-        Based on the following building description, generate two distinct and plausible structural schemes.
+        Based on the following building description, generate {number_of_schemes} distinct and plausible structural schemes.
         Description: "{description}"
         
         For each scheme, provide a flat JSON object containing a descriptive 'name' and the following integer parameters:
-        - 'grid_spacing_x' (meters, typically between 6 and 12)
-        - 'grid_spacing_y' (meters, typically between 6 and 12)
-        - 'extents_x' (total building width in meters, must be a multiple of grid_spacing_x)
-        - 'extents_y' (total building length in meters, must be a multiple of grid_spacing_y)
+        - 'grid_spacing_x' (meters, typically between 5 and 15)
+        - 'grid_spacing_y' (meters, typically between 5 and 15)
+        - 'extents_x' (total building width in meters, must be a multiple of grid_spacing_x and less than 50)
+        - 'extents_y' (total building length in meters, must be a multiple of grid_spacing_y and less than 50)
         - 'no_of_floors' (number of stories)
-        
-        Return ONLY a valid JSON object with a single key "schemes" which is a list of these two flat scheme objects. Do not include a nested 'inputs' object. Do not include ```json``` markers or any other text.
+        These parameters should be strictly integers.
+        Return ONLY a valid JSON object with a single key "schemes" which is a list of these {number_of_schemes} flat scheme objects. Do not include a nested 'inputs' object. Do not include ```json``` markers or any other text.
         """
         
         response = llm.invoke(generation_prompt)
         schemes_data = json.loads(response.content)
         schemes = schemes_data["schemes"]
-        if not isinstance(schemes, list) or len(schemes) != 2:
-            raise ValueError("LLM did not return a list of two schemes.")
+        if not isinstance(schemes, list):
+            raise ValueError("LLM did not return a list of schemes.")
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         return f"Failed to generate or parse valid building schemes from the LLM. Error: {e}"
     except Exception as e:
@@ -110,7 +111,9 @@ def evaluate_building_schemes(description: str) -> str:
         total_emissions = total_steel_emissions + total_concrete_emissions
 
         output_lines.append(f"\n## {scheme['name']}")
-        output_lines.append(f"   - Inputs: {scheme['inputs']}")
+        output_lines.append(f"   - Scheme Inputs:")
+        for key, value in scheme.get('inputs', {}).items():
+            output_lines.append(f"     - {key.replace('_', ' ').title()}: {value}")
         output_lines.append(f"   - Steel Tonnage: {scheme['steel_tonnage']:.2f} kg")
         output_lines.append(f"   - Concrete Tonnage: {scheme['concrete_tonnage']:.2f} kg")
         output_lines.append(f"   - Using Steel Product: '{lowest_emission_steel.name}' from {lowest_emission_steel.manufacturing_country} ({lowest_emission_steel.manufacturing_emissions} kgCO2e/{lowest_emission_steel.declared_unit})")
@@ -125,30 +128,40 @@ def evaluate_building_schemes(description: str) -> str:
 # Tool 3: Find specific products (like paint)
 class ProductSearchInput(BaseModel):
     product_type: str = Field(..., description="The type of product to search for, e.g., 'paint', 'insulation', 'cladding'.")
+    page: int = Field(1, description="The page number of results to return. Use this to get more alternatives if the first page has been shown.")
 
 @tool(args_schema=ProductSearchInput)
-def find_low_emission_product(product_type: str) -> str:
+def find_low_emission_product(product_type: str, page: int = 1) -> str:
     """
     Searches the 2050 Materials database for a specific type of product
-    and returns the top 3 options with the lowest manufacturing emissions.
-    Use this for follow-up questions about specific materials like paint, windows, etc.
+    and returns a paginated list of options with the lowest manufacturing emissions.
+    Use this for follow-up questions about specific materials like paint, windows, etc. 
+    When a user asks for 'alternatives' or 'more options', increment the 'page' number to show the next set of results.
     """
     try:
+        page_size = 3
+        offset = (page - 1) * page_size
+
         products_output = mcp_client.search_2050_products(product_type)
         if not products_output.products:
             return f"No products found for '{product_type}'."
 
         valid_products = [p for p in products_output.products if p.manufacturing_emissions is not None]
         sorted_products = sorted(valid_products, key=lambda p: p.manufacturing_emissions)
-
+        
         if not sorted_products:
             return f"Found products for '{product_type}', but none had manufacturing emission data."
 
-        output_lines = [f"Top {min(3, len(sorted_products))} low-emission options for '{product_type}':"]
-        for p in sorted_products[:3]:
-            output_lines.append(f"- Product: '{p.name}'")
-            output_lines.append(f"  - Manufacturer Location: {p.city}, {p.manufacturing_country}")
-            output_lines.append(f"  - Emissions: {p.manufacturing_emissions} kgCO2e/{p.declared_unit}")
+        paginated_products = sorted_products[offset : offset + page_size]
+
+        if not paginated_products:
+            return f"No more alternatives found for '{product_type}' on page {page}."
+
+        output_lines = [f"Showing page {page} of low-emission options for '{product_type}':"]
+        for i, p in enumerate(paginated_products):
+            output_lines.append(f"{offset + i + 1}. Product: '{p.name}'")
+            output_lines.append(f"   - Manufacturer Location: {p.city}, {p.manufacturing_country}")
+            output_lines.append(f"   - Emissions: {p.manufacturing_emissions} kgCO2e/{p.declared_unit}")
 
         return "\n".join(output_lines)
 
@@ -181,7 +194,7 @@ def divide(a: float, b: float) -> float:
 
 # Consolidate all tools into a list
 all_tools = [
-    search_sustainable_building_options,
+    search_building_case_studies,
     evaluate_building_schemes,
     find_low_emission_product,
     add,
