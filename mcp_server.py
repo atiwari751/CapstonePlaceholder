@@ -161,6 +161,7 @@ def parse_product_data(product_json: Dict[str, Any]) -> ProductInfo:
     """Helper function to parse product JSON and extract only the essential values"""
     try:
         material_facts = product_json.get("material_facts", {})
+        emissions_value = material_facts.get("manufacturing")
         
         return ProductInfo(
             name=product_json.get("name"),
@@ -168,7 +169,8 @@ def parse_product_data(product_json: Dict[str, Any]) -> ProductInfo:
             manufacturing_country=product_json.get("manufacturing_country"),
             city=product_json.get("city"),
             declared_unit=material_facts.get("declared_unit"),
-            manufacturing_emissions=float(material_facts.get("manufacturing", 0))
+            # Handle cases where emissions value might be None
+            manufacturing_emissions=float(emissions_value) if emissions_value is not None else None
         )
     except Exception as e:
         mcp_log("error", f"Error parsing product data: {e}")
@@ -197,17 +199,34 @@ def search_documents(query: str) -> list[str]:
     ensure_faiss_ready()
     mcp_log("SEARCH", f"Query: {query}")
     try:
-        index = faiss.read_index(str(ROOT / "faiss_index" / "index.bin"))
-        metadata = json.loads((ROOT / "faiss_index" / "metadata.json").read_text())
+        index_path = ROOT / "faiss_index" / "index.bin"
+        meta_path = ROOT / "faiss_index" / "metadata.json"
+        if not index_path.exists():
+            return ["ERROR: The document index has not been created. Please add files to the 'documents' directory and restart."]
+
+        index = faiss.read_index(str(index_path))
+        metadata = json.loads(meta_path.read_text())
+
+        if index.ntotal == 0:
+            return ["INFO: The search index is empty. No documents have been processed."]
+
         query_vec = get_embedding(query).reshape(1, -1)
         D, I = index.search(query_vec, k=5)
+        
         results = []
-        for idx in I[0]:
+        # FAISS returns -1 for indices if no neighbors are found
+        valid_indices = [i for i in I[0] if i != -1]
+
+        if not valid_indices:
+            return [f"INFO: No relevant documents found for the query: '{query}'"]
+
+        for idx in valid_indices:
             data = metadata[idx]
             results.append(f"{data['chunk']}\n[Source: {data['doc']}, ID: {data['chunk_id']}]")
         return results
     except Exception as e:
-        return [f"ERROR: Failed to search: {str(e)}"]
+        mcp_log("error", f"An unexpected error occurred in search_documents: {e}\n{traceback.format_exc()}")
+        return [f"ERROR: An unexpected error occurred while searching: {str(e)}"]
 
 @mcp.tool()
 def add(input: AddInput) -> AddOutput:
