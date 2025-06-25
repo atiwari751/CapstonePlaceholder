@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.memory import ConversationBufferMemory
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import AIMessage, HumanMessage
@@ -46,13 +47,14 @@ Your memory of the conversation is provided in the `chat_history`.
 - **THEN** you MUST use the `evaluate_building_schemes` tool.
 
 **Rule 3: Finding Products**
-- **IF** the user asks for specific products (e.g., 'paint', 'windows'), use the `find_low_emission_product` tool.
-- **IF** the user asks for 'more' or 'alternatives' for a product, you MUST find the previous `find_low_emission_product` call in the `chat_history`, and call it again with the same `product_type` and an incremented `page` number.
+- **IF** the user asks for specific products (e.g., 'paint', 'windows'), you MUST use the `find_low_emission_product` tool. This tool returns the single best option and stores others in memory.
+- **IF** the user asks for 'more' or 'alternatives' for a product, you MUST NOT use a tool. Instead, follow Rule 4 to retrieve the alternatives from memory.
 
 **Rule 4: Answering from Memory (CRITICAL RULE)**
 - **IF** the user asks a follow-up question about a scheme, product, or result that is already in the `chat_history`.
 - **THEN** your task is to find the answer directly within the `chat_history` and provide it. Do not use any tools for this unless a new calculation is required.
-- **Example:** If the user asks for "details of Square Bay", you must find the "## Square Bay" section in the `chat_history` and extract the "Scheme Inputs" from it to form your answer.
+- **Example (Scheme Details):** If the user asks for "details of Square Bay", you must find the "## Square Bay" section in the `chat_history` and extract the "Scheme Inputs" from it to form your answer.
+- **Example (Product Alternatives):** If the user asks for "alternatives", you must find the `PRODUCT_DATA` block in the `chat_history`, parse the JSON, and present the 2nd and 3rd options from the list.
 - **MANDATORY:** It is a critical failure to use a tool or claim information is unavailable when the answer is already in the `chat_history`.
 
 **Rule 5: Calculations**
@@ -76,7 +78,12 @@ Always provide the final answer to the user in a clear, well-formatted way.
     agent = create_openai_tools_agent(llm, all_tools, prompt_template)
 
     # 4. Create the Agent Executor
-    agent_executor = AgentExecutor(agent=agent, tools=all_tools, verbose=True)
+    memory = ConversationBufferMemory(return_messages=True, memory_key="chat_history")
+    agent_executor = AgentExecutor(
+        agent=agent, tools=all_tools, verbose=True, memory=memory
+    )
+
+    # Load initial chat history from the memory if available
 
     return agent_executor
 
@@ -105,7 +112,7 @@ def run_chat():
             print("Assistant: Goodbye!")
             break
 
-        response = agent_executor.invoke({"input": user_input, "chat_history": chat_history})
+        response = agent_executor.invoke({"input": user_input})
         print(f"\nAssistant:\n{response['output']}")
 
         chat_history.extend([HumanMessage(content=user_input), AIMessage(content=response["output"])])

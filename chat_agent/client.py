@@ -39,7 +39,7 @@ class MCPClient:
     A client to interact with the tools defined in mcp_server.py.
     """
     def add(self, a: int, b: int) -> int:
-        return add(AddInput(a=a, b=b)).result
+        return add(AddInput(a=a, b=b))
 
     def subtract(self, a: int, b: int) -> int:
         return subtract(a=a, b=b)
