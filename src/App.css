@@ -1,0 +1,336 @@
+/* Main app container */
+.app-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Split Layout */
+.split-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Visualization Area (Left Side) */
+.visualization-area {
+  flex: 3; /* Takes 60% of the width */
+  min-width: 60%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid #ccc;
+  background-color: white;
+}
+
+/* Agent Area (Right Side) */
+.agent-area {
+  flex: 2; /* Takes 40% of the width */
+  max-width: 40%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #f8f9fa;
+}
+
+.agent-header {
+  padding: 15px;
+  border-bottom: 1px solid #ddd;
+  background-color: #f0f0f0;
+}
+
+.agent-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.agent-content {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.placeholder-content {
+  min-height: 200px;
+}
+
+/* User Input Area */
+.user-input-area {
+  padding: 15px;
+  border-top: 1px solid #ddd;
+  background-color: #fff;
+}
+
+.user-input-area form {
+  display: flex;
+  gap: 10px;
+}
+
+.user-input-area input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.user-input-area button {
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.user-input-area button:hover {
+  background-color: #45a049;
+}
+
+/* Loading State */
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  color: #333;
+}
+
+/* Controls for 3D visualization */
+.controls {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  z-index: 10;
+}
+
+.controls h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.controls p {
+  margin: 5px 0;
+}
+
+.agent-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  text-align: center;
+  color: #666;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.agent-placeholder p {
+  margin: 8px 0;
+}
+
+.vis-header {
+  background-color: #333;
+  color: white;
+  padding: 10px 15px;
+  text-align: center;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0; /* Prevent header from shrinking */
+}
+
+.vis-header h3 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+}
+
+.vis-header p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Create a scrollable container for the grid */
+.visualization-content {
+  flex: 1;
+  overflow: auto; /* Add scrollbars when content overflows */
+  position: relative;
+  padding: 0;
+  background-color: white;
+}
+
+/* Query container */
+.query-container {
+  margin-bottom: 30px;
+}
+
+.query-container h2 {
+  margin-top: 0;
+}
+
+.query-container textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  margin-bottom: 10px;
+  resize: vertical;
+}
+
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.submit-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.submit-button:hover {
+  background-color: #45a049;
+}
+
+.submit-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Results container */
+.results-container {
+  margin-top: 20px;
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 20px 0;
+}
+
+/* Results list */
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.result-item summary {
+  padding: 10px 15px;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+}
+
+.result-content {
+  padding: 15px;
+  background-color: #ffffff;
+}
+
+.result-content pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.info-message {
+  color: #0066cc;
+  padding: 10px;
+  background-color: #e6f3ff;
+  border-radius: 4px;
+}
+
+/* Final answer */
+.final-answer {
+  padding: 15px;
+  background-color: #e6ffe6;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.reset-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.reset-button:hover {
+  background-color: #0b7dda;
+}
+
+/* Footer */
+.app-footer {
+  padding: 15px 20px;
+  color: #666;
+  font-size: 14px;
+  background-color: #f8f8f8;
+  border-top: 1px solid #e0e0e0;
+}
+
+.app-footer hr {
+  display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .app-content {
+    flex-direction: column;
+  }
+  
+  .conversation-column,
+  .visualization-column {
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  .conversation-column {
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .visualization-container {
+    height: 500px;
+  }
+} 

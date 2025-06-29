@@ -1,0 +1,135 @@
+.scheme-grid-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.scheme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 20px;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  overflow: auto;
+}
+
+/* Special layouts based on scheme count */
+.scheme-grid.single-scheme {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.scheme-grid.two-schemes {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
+.scheme-grid.four-schemes {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.scheme-frame {
+  position: relative;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 250px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.scheme-frame:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.scheme-title {
+  padding: 8px 12px;
+  font-weight: bold;
+  font-size: 14px;
+  color: #333;
+  background-color: transparent;
+  text-align: left;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  text-shadow: 0px 0px 3px white;
+}
+
+.scheme-canvas-container {
+  flex: 1;
+  position: relative;
+  min-height: 200px;
+}
+
+/* Make sure Canvas takes up the full height of its container */
+.scheme-canvas-container > div {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Simple cuboid placeholder styling */
+.simple-cuboid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+/* Empty state styling */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  min-height: 300px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 2px dashed #ddd;
+}
+
+.empty-state-content {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.empty-state-content h3 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .scheme-grid:not(.single-scheme):not(.two-schemes):not(.four-schemes) {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .scheme-grid:not(.single-scheme) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+} 

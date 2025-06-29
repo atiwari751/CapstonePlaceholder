@@ -7,9 +7,6 @@ from pathlib import Path
 # a transport mechanism like HTTP requests to communicate with the server.
 
 # Add the parent directory to the path to allow importing mcp_server
-# This is necessary because we are running from the chat_agent subdirectory.
-sys.path.append(str(Path(__file__).parent.parent.resolve()))
-
 from mcp_server import (
     add,
     subtract,

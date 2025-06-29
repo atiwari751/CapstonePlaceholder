@@ -71,3 +71,13 @@ class AiFormSchemerOutput(BaseModel):
     structural_depth: int = Field(..., description="Structural depth")
     concrete_tonnage: float = Field(..., description="Total concrete tonnage")
     trustworthy: bool = Field(..., description="Whether the results are trustworthy")
+
+# New models for structured tool outputs
+class ToolOutputSummary(BaseModel):
+    summary: str = Field(..., description="A human-readable summary of the tool's operation and results.")
+
+class EvaluateBuildingSchemesToolOutput(ToolOutputSummary):
+    schemes: List[Dict[str, Any]] = Field(..., description="Structured data for each evaluated building scheme.")
+
+class FindLowEmissionProductToolOutput(ToolOutputSummary):
+    product_options: List[ProductInfo] = Field(..., description="Structured data for the top product options found.")

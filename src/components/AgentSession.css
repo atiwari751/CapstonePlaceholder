@@ -1,0 +1,170 @@
+/* Agent Session Styles */
+.agent-session {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 5px;
+  width: 100%;
+}
+
+.session-info {
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.session-info p {
+  margin: 5px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-info code {
+  background-color: #e0e0e0;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Results Section */
+.results-section {
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+.results-section h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* Tool Result */
+.tool-result {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 5px;
+  width: 100%;
+}
+
+.tool-summary {
+  padding: 10px 15px;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-summary:hover {
+  background-color: #f0f0f0;
+}
+
+/* Tool name and status container */
+.tool-info {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tool name */
+.tool-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+/* Status indicator - always visible */
+.tool-status {
+  white-space: nowrap;
+  margin-left: auto;
+  padding-left: 10px;
+}
+
+.tool-content {
+  padding: 15px;
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.result-code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+}
+
+.info-message {
+  color: #0066cc;
+  padding: 10px;
+  background-color: #e6f3ff;
+  border-radius: 4px;
+}
+
+/* Final Answer */
+.final-answer {
+  padding: 15px;
+  background-color: #e6ffe6;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.final-answer h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.answer-content {
+  line-height: 1.5;
+}
+
+/* New Query Button */
+.new-query-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  align-self: flex-start;
+}
+
+.new-query-button:hover {
+  background-color: #0b7dda;
+} 

@@ -102,6 +102,7 @@ def evaluate_building_schemes(description: str, number_of_schemes: int = 2) -> s
 
     # c. & d. Calculate emissions and provide output
     output_lines = [f"Evaluation based on user request: '{description}'\n"]
+    output_data = {"schemes": []}  # Initialize a dictionary to store scheme data
     output_lines.append("\n--- Scheme Comparison ---")
     output_lines.append(f"Note: The following calculations use the lowest-emission structural steel and concrete products found in the database.")
     
@@ -122,48 +123,55 @@ def evaluate_building_schemes(description: str, number_of_schemes: int = 2) -> s
         output_lines.append(f"   - Calculated Concrete Emissions: {total_concrete_emissions:,.2f} kgCO2e")
         output_lines.append(f"   - **Total Manufacturing Emissions: {total_emissions:,.2f} kgCO2e**")
 
-    return "\n".join(output_lines)
+        # Store scheme data for memory retrieval
+        output_data["schemes"].append(scheme)
+
+    # Include the structured data in the output string for memory
+    return "\n".join(output_lines) + f"\n\nSCHEME_DATA: {json.dumps(output_data)}"
 
 
 # Tool 3: Find specific products (like paint)
 class ProductSearchInput(BaseModel):
     product_type: str = Field(..., description="The type of product to search for, e.g., 'paint', 'insulation', 'cladding'.")
-    page: int = Field(1, description="The page number of results to return. Use this to get more alternatives if the first page has been shown.")
 
 @tool(args_schema=ProductSearchInput)
-def find_low_emission_product(product_type: str, page: int = 1) -> str:
+def find_low_emission_product(product_type: str) -> str:
     """
     Searches the 2050 Materials database for a specific type of product
-    and returns a paginated list of options with the lowest manufacturing emissions.
-    Use this for follow-up questions about specific materials like paint, windows, etc. 
-    When a user asks for 'alternatives' or 'more options', increment the 'page' number to show the next set of results.
+    and finds the top 3 options with the lowest manufacturing emissions.
+    It returns the single best option to the user and stores all 3 in a hidden data block for follow-up questions.
+    Use this for initial questions about specific materials like paint, windows, etc.
     """
     try:
-        page_size = 3
-        offset = (page - 1) * page_size
-
         products_output = mcp_client.search_2050_products(product_type)
         if not products_output.products:
             return f"No products found for '{product_type}'."
 
         valid_products = [p for p in products_output.products if p.manufacturing_emissions is not None]
         sorted_products = sorted(valid_products, key=lambda p: p.manufacturing_emissions)
-        
+
         if not sorted_products:
             return f"Found products for '{product_type}', but none had manufacturing emission data."
 
-        paginated_products = sorted_products[offset : offset + page_size]
+        top_products = sorted_products[:3]  # Get top 3
 
-        if not paginated_products:
-            return f"No more alternatives found for '{product_type}' on page {page}."
+        if not top_products:
+            return f"No low-emission products found for '{product_type}'."
 
-        output_lines = [f"Showing page {page} of low-emission options for '{product_type}':"]
-        for i, p in enumerate(paginated_products):
-            output_lines.append(f"{offset + i + 1}. Product: '{p.name}'")
-            output_lines.append(f"   - Manufacturer Location: {p.city}, {p.manufacturing_country}")
-            output_lines.append(f"   - Emissions: {p.manufacturing_emissions} kgCO2e/{p.declared_unit}")
+        # Prepare the response for the user (only the best one)
+        best_product = top_products[0]
+        user_response = (
+            f"The lowest emission product for '{product_type}' is '{best_product.name}' "
+            f"from {best_product.city}, {best_product.manufacturing_country} "
+            f"with emissions of {best_product.manufacturing_emissions} kgCO2e/{best_product.declared_unit}. "
+            "Other options are available if you'd like to see them."
+        )
 
-        return "\n".join(output_lines)
+        # Prepare the hidden data block for memory
+        product_data_for_memory = [p.dict() for p in top_products]
+        hidden_data = {"product_options": product_data_for_memory}
+
+        return user_response + f"\n\nPRODUCT_DATA: {json.dumps(hidden_data)}"
 
     except Exception as e:
         return f"Error searching for product '{product_type}': {e}"
