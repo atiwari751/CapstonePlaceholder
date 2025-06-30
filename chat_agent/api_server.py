@@ -3,6 +3,7 @@ import asyncio
 import sys
 import shelve
 import logging
+import os
 import datetime
 from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, HTTPException
@@ -139,6 +140,8 @@ def run_agent_in_background(session_id: str, query: str):
         ui_final_answer = agent_output
         if "PRODUCT_DATA:" in ui_final_answer:
             ui_final_answer = ui_final_answer.split("PRODUCT_DATA:")[0].strip()
+        if "SCHEME_DATA:" in ui_final_answer:
+            ui_final_answer = ui_final_answer.split("SCHEME_DATA:")[0].strip()
         session_data["final_answer"] = ui_final_answer
 
         session_data["chat_history"].append(
@@ -189,6 +192,33 @@ async def create_query(request: QueryRequest, background_tasks: BackgroundTasks)
     background_tasks.add_task(run_agent_in_background, session_id, request.query)
     
     return {"session_id": session_id}
+
+@app.post("/sessions", response_model=SessionInfo, status_code=201)
+async def create_new_session():
+    """
+    Creates a new, empty session and returns its details.
+    """
+    session_id = str(uuid.uuid4())
+    logger.info(f"Explicitly creating new session {session_id}")
+    
+    session_data = {
+        "status": "new", # A new status to indicate it's empty
+        "results": {},
+        "final_answer": None,
+        "schemes": [],
+        "error": None,
+        "chat_history": [],
+        "created_at": datetime.datetime.now().isoformat(),
+        "first_query": "(New Chat)" # Placeholder title
+    }
+    sessions[session_id] = session_data
+
+    return SessionInfo(
+        session_id=session_id,
+        created_at=session_data["created_at"],
+        first_query=session_data["first_query"],
+        last_agent_response=""
+    )
 
 @app.get("/session/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(session_id: str):
@@ -269,8 +299,16 @@ async def startup_event():
 async def shutdown_event():
     """Close the session database on server shutdown."""
     if sessions is not None:
-        sessions.close()
-        logger.info("Session database closed.")
+        try:
+            sessions.close()
+            logger.info("Session database closed.")
+            # Clean up the session files
+            db_path_base = Path(SESSION_DB_FILE).stem
+            for f in Path('.').glob(f'{db_path_base}.*'):
+                os.remove(f)
+                logger.info(f"Removed session file: {f}")
+        except Exception as e:
+            logger.error(f"Error during session database shutdown and cleanup: {e}")
 
 if __name__ == "__main__":
     import uvicorn

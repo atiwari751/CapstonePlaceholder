@@ -276,8 +276,17 @@ function App() {
                 }
                 // Handle historical, completed agent messages from the backend
                 if (msg.type === 'ai') {
+                  // Clean the historical message content to hide data blocks from the UI
+                  let cleanContent = msg.content;
+                  if (cleanContent.includes("PRODUCT_DATA:")) {
+                    cleanContent = cleanContent.split("PRODUCT_DATA:")[0].trim();
+                  }
+                  if (cleanContent.includes("SCHEME_DATA:")) {
+                    cleanContent = cleanContent.split("SCHEME_DATA:")[0].trim();
+                  }
+
                   // Transform the historical 'ai' message into the format the ChatMessage component expects for a completed response.
-                  const completedMessage = { status: 'completed', finalAnswer: msg.content };
+                  const completedMessage = { status: 'completed', finalAnswer: cleanContent };
                   return <ChatMessage key={index} message={completedMessage} isUser={false} />;
                 }
                 return null;
