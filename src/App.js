@@ -149,39 +149,32 @@ function App() {
     e.preventDefault();
     
     const prompt = currentPrompt.trim();
-    if (!prompt || isProcessing) return;
+    if (!prompt || isProcessing || !sessionId) return;
     
     setIsProcessing(true);
 
-    // Determine if this is the start of a new chat
-    const isNewChat = !sessionId;
+    const wasChatEmpty = chatHistory.length === 0;
 
     // Add user's prompt and a placeholder for the agent's response to the history
     const userMessage = { type: 'human', content: prompt };
     const agentPlaceholder = { type: 'agent', sessionId: sessionId, status: 'running', results: {}, finalAnswer: null };
 
-    // If it's a new chat, replace the history; otherwise, append.
-    // This prevents carrying over old messages if state updates are batched.
-    setChatHistory(prev => 
-      isNewChat ? [userMessage, agentPlaceholder] : [...prev, userMessage, agentPlaceholder]
-    );
+    // A session always exists, so just append to the current history.
+    setChatHistory(prev => [...prev, userMessage, agentPlaceholder]);
     
     try {
-      // If we have a session ID, send it to continue the conversation.
-      // Otherwise, the backend will create a new session.
-      const payload = { query: prompt };
-      if (sessionId) {
-        payload.session_id = sessionId;
-      }
+      // We always have a session ID now.
+      const payload = { query: prompt, session_id: sessionId };
 
       const response = await axios.post(`${API_URL}/query`, payload);
       const data = response.data;
       
-      // If it was a new session, refresh the session list to include it
-      if (!sessionId) {
+      // If this was the first message, refresh the session list to update its title
+      if (wasChatEmpty) {
         await refreshSessionList();
       }
 
+      // The session ID should not change, but we set it just in case
       setSessionId(data.session_id);
       setPollingActive(true);
 
@@ -208,12 +201,26 @@ function App() {
   };
   
   // Handle starting a new chat view
-  const handleNewQuery = () => {
-    setSessionId(null);
-    setPollingActive(false);
-    setIsProcessing(false);
-    setChatHistory([]);
-    setSchemes([]);
+  const handleNewChat = async () => {
+    if (isProcessing) return;
+
+    setIsProcessing(true);
+    try {
+      const response = await axios.post(`${API_URL}/sessions`);
+      const newSession = response.data;
+
+      // Add the new session to the top of the list and select it
+      setAllSessions(prev => [newSession, ...prev]);
+      setSessionId(newSession.session_id);
+      setChatHistory([]);
+      setSchemes([]);
+      setPollingActive(false);
+    } catch (err) {
+      console.error("Failed to create new session:", err);
+      setError("Could not start a new chat. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (loading) {
@@ -251,7 +258,7 @@ function App() {
           <SessionList 
             sessions={allSessions}
             onSelectSession={handleSelectSession}
-            onNewChat={handleNewQuery}
+            onNewChat={handleNewChat}
             currentSessionId={sessionId}
           />
           

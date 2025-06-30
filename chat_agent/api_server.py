@@ -113,23 +113,39 @@ def run_agent_in_background(session_id: str, query: str):
         # AI message, is persisted for the next turn.
         session_data = sessions[session_id] # Re-fetch data modified by callback
         
-        # Clean the final answer for UI display, removing the PRODUCT_DATA block.
-        # The full response output is still saved to chat_history for agent memory.
-        final_answer_from_agent = session_data.get("final_answer")
-        if final_answer_from_agent:
-            # Remove PRODUCT_DATA for product searches
-            if "PRODUCT_DATA:" in final_answer_from_agent:
-                final_answer_from_agent = final_answer_from_agent.split("PRODUCT_DATA:")[0].strip()
-            # Remove SCHEME_DATA for scheme evaluations
-            if "SCHEME_DATA:" in final_answer_from_agent:
-                final_answer_from_agent = final_answer_from_agent.split("SCHEME_DATA:")[0].strip()
-            session_data["final_answer"] = final_answer_from_agent
+        agent_output = response.get("output", "")
+        
+        # --- Memory Enhancement ---
+        # The agent sometimes forgets to include PRODUCT_DATA in its final answer after an evaluation.
+        # We will inspect the intermediate tool outputs and manually append any missing
+        # PRODUCT_DATA blocks to the response that gets saved in the chat history.
+        # This makes the agent's memory more robust.
+        product_data_blocks = []
+        if "intermediate_steps" in response:
+            for action, observation in response["intermediate_steps"]:
+                if "PRODUCT_DATA:" in str(observation):
+                    parts = str(observation).split("PRODUCT_DATA:")
+                    for part in parts[1:]:
+                        block = f"PRODUCT_DATA: {part.strip()}"
+                        product_data_blocks.append(block)
+        
+        final_response_for_history = agent_output
+        for block in product_data_blocks:
+            if block not in final_response_for_history:
+                final_response_for_history += f"\n\n{block}"
+        # --- End Memory Enhancement ---
+
+        # Clean the final answer for UI display, removing any data blocks.
+        ui_final_answer = agent_output
+        if "PRODUCT_DATA:" in ui_final_answer:
+            ui_final_answer = ui_final_answer.split("PRODUCT_DATA:")[0].strip()
+        session_data["final_answer"] = ui_final_answer
 
         session_data["chat_history"].append(
             {"type": "human", "content": query}
         )
         session_data["chat_history"].append(
-            {"type": "ai", "content": response.get("output", "")}
+            {"type": "ai", "content": final_response_for_history}
         )
         
         # Persist the updated history and any other changes from the callback
@@ -152,29 +168,22 @@ async def create_query(request: QueryRequest, background_tasks: BackgroundTasks)
 
     if session_id and session_id in sessions:
         logger.info(f"Continuing session {session_id} with query: '{request.query}'")
-        # Session exists, update its status and reset turn-specific data
-        # to prevent showing stale results from the previous turn.
         session_data = sessions[session_id]
+        
+        # If this is the first message in a newly created session, update its title
+        if session_data.get("status") == "new" and not session_data.get("chat_history"):
+            logger.info(f"Updating title for new session {session_id} to '{request.query}'")
+            session_data["first_query"] = request.query
+        
         session_data["status"] = "running"
         session_data["results"] = {}
         session_data["final_answer"] = None
         session_data["error"] = None
         sessions[session_id] = session_data # Write back status change
     else:
-        session_id = str(uuid.uuid4())
-        logger.info(f"Received new query, creating session {session_id}: '{request.query}'")
-        # Initialize new session data
-        sessions[session_id] = {
-            "status": "running",
-            "results": {},
-            "final_answer": None,
-            "schemes": [],
-            "error": None,
-            "chat_history": [] # Initialize chat history for new sessions
-        }
-        # Add metadata for the session list
-        sessions[session_id]["created_at"] = datetime.datetime.now().isoformat()
-        sessions[session_id]["first_query"] = request.query
+        # This branch is now a fallback for clients that don't pre-create sessions.
+        # The preferred flow is to create a session first via POST /sessions.
+        raise HTTPException(status_code=400, detail="session_id is required. Please create a session first.")
 
     # Add the agent execution to background tasks
     background_tasks.add_task(run_agent_in_background, session_id, request.query)
