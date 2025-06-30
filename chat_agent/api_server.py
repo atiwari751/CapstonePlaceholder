@@ -3,6 +3,7 @@ import asyncio
 import sys
 import shelve
 import logging
+import datetime
 from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,15 @@ from scheme_service import scheme_service
 class QueryRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
+
+class SessionInfo(BaseModel):
+    session_id: str
+    created_at: str
+    first_query: str
+    last_agent_response: Optional[str] = None
+
+class SessionListResponse(BaseModel):
+    sessions: List[SessionInfo]
 
 class QueryResponse(BaseModel):
     session_id: str
@@ -78,11 +88,14 @@ def run_agent_in_background(session_id: str, query: str):
         # Reconstruct chat history from stored dicts into LangChain message objects
         chat_history_for_agent = []
         raw_history = session_data.get("chat_history", [])
-        for msg_data in raw_history:
-            if msg_data.get("type") == "human":
-                chat_history_for_agent.append(HumanMessage(content=msg_data.get("content")))
-            elif msg_data.get("type") == "ai":
-                chat_history_for_agent.append(AIMessage(content=msg_data.get("content")))
+        for msg in raw_history:
+            if isinstance(msg, (HumanMessage, AIMessage)):
+                chat_history_for_agent.append(msg)
+            elif isinstance(msg, dict):
+                if msg.get("type") == "human":
+                    chat_history_for_agent.append(HumanMessage(content=msg.get("content")))
+                elif msg.get("type") == "ai":
+                    chat_history_for_agent.append(AIMessage(content=msg.get("content")))
 
         # Create a callback handler for this specific session
         # It will write updates directly to the shelve DB
@@ -159,6 +172,9 @@ async def create_query(request: QueryRequest, background_tasks: BackgroundTasks)
             "error": None,
             "chat_history": [] # Initialize chat history for new sessions
         }
+        # Add metadata for the session list
+        sessions[session_id]["created_at"] = datetime.datetime.now().isoformat()
+        sessions[session_id]["first_query"] = request.query
 
     # Add the agent execution to background tasks
     background_tasks.add_task(run_agent_in_background, session_id, request.query)
@@ -184,6 +200,53 @@ async def get_session_status(session_id: str):
         response_data["chat_history"] = []
 
     return response_data
+
+@app.get("/sessions", response_model=SessionListResponse)
+async def list_sessions():
+    """
+    Lists all available sessions with their metadata, sorted by creation date.
+    """
+    session_list = []
+    # Sort by creation date, newest first
+    sorted_session_ids = sorted(
+        sessions.keys(),
+        key=lambda sid: sessions[sid].get("created_at", "1970-01-01"),
+        reverse=True
+    )
+
+    for sid in sorted_session_ids:
+        session_data = sessions[sid]
+        
+        # Find the last agent response from chat history for a preview
+        last_agent_response = ""
+        chat_history = session_data.get("chat_history", [])
+        for msg in reversed(chat_history): # Iterate backwards to find the last AI message
+            is_ai_message = False
+            content = ""
+            if isinstance(msg, dict):
+                if msg.get("type") == "ai":
+                    is_ai_message = True
+                    content = msg.get("content", "").strip()
+            elif isinstance(msg, AIMessage):
+                is_ai_message = True
+                content = msg.content.strip()
+
+            if is_ai_message and content:
+                # Clean the content for preview, removing data blocks
+                if "PRODUCT_DATA:" in content:
+                    content = content.split("PRODUCT_DATA:")[0].strip()
+                last_agent_response = content
+                break # Found the last one, so we can stop searching
+
+        session_list.append(
+            SessionInfo(
+                session_id=sid,
+                created_at=session_data.get("created_at", "N/A"),
+                first_query=session_data.get("first_query", "Untitled Session"),
+                last_agent_response=last_agent_response
+            )
+        )
+    return {"sessions": session_list}
 
 @app.on_event("startup")
 async def startup_event():

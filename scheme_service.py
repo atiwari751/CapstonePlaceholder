@@ -47,6 +47,9 @@ class SchemeService:
             # Generate a new ID (max existing ID + 1 or 1 if no schemes exist)
             new_id = max([s.id for s in self.schemes], default=0) + 1
             
+            # Extract name, providing a fallback
+            name = str(self._extract_value(agent_data, "name", f"Scheme {new_id}"))
+
             # Extract parameters
             parameters = SchemeParameters(
                 grid_spacing_x=self._extract_value(agent_data, "grid_spacing_x", "6"),
@@ -82,6 +85,7 @@ class SchemeService:
             # Create the scheme with proper dimensions
             scheme = Scheme(
                 id=new_id,
+                name=name,
                 parameters=parameters,
                 evaluations=evaluations,
                 width=extents_x,  # Use actual extents_x value
@@ -220,6 +224,7 @@ class SchemeService:
         
         return Scheme(
             id=new_id,
+            name=f"Default Scheme {new_id}",
             parameters=parameters,
             evaluations=evaluations,
             width=30.0,  # Use actual extents_x value

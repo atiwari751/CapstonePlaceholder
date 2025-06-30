@@ -3,6 +3,7 @@ import axios from 'axios';
 import './App.css';
 // Import mock data from service instead of hardcoding
 import ChatMessage from './components/ChatMessage'; // Used for both user and agent messages
+import SessionList from './components/SessionList'; // Component to show chat history
 import SchemeGrid from './components/SchemeGrid'; // Component for 3D visualization
 
 // API URL for the backend
@@ -20,21 +21,34 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [pollingActive, setPollingActive] = useState(false);
+  const [allSessions, setAllSessions] = useState([]);
 
-  // Load schemes on component mount
+  // Fetch all sessions on initial component mount
   useEffect(() => {
-    // Only load mock schemes if there's no active session
-    if (!sessionId) {
+    const fetchAllSessions = async () => {
+      setLoading(true);
       try {
-        setSchemes([]); // Start with no schemes
-        setLoading(false);
+        const response = await axios.get(`${API_URL}/sessions`);
+        setAllSessions(response.data.sessions);
       } catch (err) {
-        console.error("Error loading schemes:", err);
-        setError("Failed to load schemes. Please try again later.");
+        console.error("Failed to fetch sessions:", err);
+        setError("Failed to fetch session history. The API server may be offline.");
+      } finally {
         setLoading(false);
       }
+    };
+    fetchAllSessions();
+  }, []);
+
+  // Function to refresh the session list, e.g., after creating a new one
+  const refreshSessionList = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/sessions`);
+      setAllSessions(response.data.sessions);
+    } catch (err) {
+      console.error("Failed to refresh sessions:", err);
     }
-  }, [sessionId]);
+  }, []);
 
   // Poll results function with useCallback to avoid dependency issues
   const pollResults = useCallback(async () => {
@@ -66,7 +80,7 @@ function App() {
         // Ensure each scheme has a display-friendly name for the grid
         const namedSchemes = data.schemes.map((scheme, index) => ({
           ...scheme,
-          displayName: scheme.name || `Scheme ${index + 1}`
+          name: scheme.name || `Scheme ${index + 1}`
         }));
         setSchemes(namedSchemes);
       }
@@ -103,6 +117,33 @@ function App() {
     };
   }, [pollingActive, sessionId, pollResults]);
 
+  // Handle selecting a session from the list
+  const handleSelectSession = useCallback(async (selectedSessionId) => {
+    if (isProcessing) return; // Don't switch sessions while one is running
+
+    setPollingActive(false); // Stop any active polling
+    setIsProcessing(true); // Show loading state
+    
+    try {
+      const response = await axios.get(`${API_URL}/session/${selectedSessionId}`);
+      const data = response.data;
+      
+      setSessionId(selectedSessionId);
+      setChatHistory(data.chat_history || []);
+      
+      const namedSchemes = (data.schemes || []).map((scheme, index) => ({
+        ...scheme,
+        name: scheme.name || `Scheme ${index + 1}`
+      }));
+      setSchemes(namedSchemes);
+    } catch (err) {
+      console.error("Failed to load session:", err);
+      setError(`Failed to load session ${selectedSessionId}.`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing]);
+
   // Handle user prompt submission
   const handlePromptSubmit = async (e) => {
     e.preventDefault();
@@ -112,12 +153,18 @@ function App() {
     
     setIsProcessing(true);
 
+    // Determine if this is the start of a new chat
+    const isNewChat = !sessionId;
+
     // Add user's prompt and a placeholder for the agent's response to the history
-    setChatHistory(prev => [
-      ...prev, 
-      { type: 'human', content: prompt },
-      { type: 'agent', sessionId: sessionId, status: 'running', results: {}, finalAnswer: null } // Placeholder
-    ]);
+    const userMessage = { type: 'human', content: prompt };
+    const agentPlaceholder = { type: 'agent', sessionId: sessionId, status: 'running', results: {}, finalAnswer: null };
+
+    // If it's a new chat, replace the history; otherwise, append.
+    // This prevents carrying over old messages if state updates are batched.
+    setChatHistory(prev => 
+      isNewChat ? [userMessage, agentPlaceholder] : [...prev, userMessage, agentPlaceholder]
+    );
     
     try {
       // If we have a session ID, send it to continue the conversation.
@@ -130,6 +177,11 @@ function App() {
       const response = await axios.post(`${API_URL}/query`, payload);
       const data = response.data;
       
+      // If it was a new session, refresh the session list to include it
+      if (!sessionId) {
+        await refreshSessionList();
+      }
+
       setSessionId(data.session_id);
       setPollingActive(true);
 
@@ -137,7 +189,16 @@ function App() {
       console.error("Error processing query:", error);
       const errorMessage = "An error occurred. The API server may be offline.";
       setError(errorMessage);
-      setChatHistory(prev => [...prev, { type: 'ai', content: errorMessage }]);
+      // Update the placeholder to show the error instead of adding a new message
+      setChatHistory(prev => {
+        const newHistory = [...prev];
+        const lastMessageIndex = newHistory.length - 1;
+        if (lastMessageIndex >= 0 && newHistory[lastMessageIndex].type === 'agent') {
+          newHistory[lastMessageIndex].status = 'error';
+          newHistory[lastMessageIndex].finalAnswer = errorMessage;
+        }
+        return newHistory;
+      });
       setIsProcessing(false);
       setPollingActive(false);
     }
@@ -146,7 +207,7 @@ function App() {
     setCurrentPrompt('');
   };
   
-  // Handle starting a new query
+  // Handle starting a new chat view
   const handleNewQuery = () => {
     setSessionId(null);
     setPollingActive(false);
@@ -186,6 +247,13 @@ function App() {
           <div className="agent-header">
             <h2>AGENT</h2>
           </div>
+
+          <SessionList 
+            sessions={allSessions}
+            onSelectSession={handleSelectSession}
+            onNewChat={handleNewQuery}
+            currentSessionId={sessionId}
+          />
           
           <div className="agent-content">
             <div className="chat-log">
@@ -194,9 +262,16 @@ function App() {
                   // Pass isUser=true and map content to the 'text' prop expected by ChatMessage
                   return <ChatMessage key={index} message={{ text: msg.content }} isUser={true} />;
                 }
-                if (msg.type === 'agent') {
+                // Handle live, in-progress agent messages
+                if (msg.type === 'agent') { 
                   // The ChatMessage component handles rendering agent responses, including tool results and the final answer.
                   return <ChatMessage key={index} message={msg} isUser={false} />;
+                }
+                // Handle historical, completed agent messages from the backend
+                if (msg.type === 'ai') {
+                  // Transform the historical 'ai' message into the format the ChatMessage component expects for a completed response.
+                  const completedMessage = { status: 'completed', finalAnswer: msg.content };
+                  return <ChatMessage key={index} message={completedMessage} isUser={false} />;
                 }
                 return null;
               })}
@@ -206,11 +281,6 @@ function App() {
           {/* User Input Area - moved inside agent-area */}
           <div className="user-input-area">
             <div className="input-form-container">
-              {sessionId && (
-                <button className="new-query-button" onClick={handleNewQuery} disabled={isProcessing}>
-                  New Chat
-                </button>
-              )}
               <form onSubmit={handlePromptSubmit} className="chat-form">
                 <input
                   type="text"

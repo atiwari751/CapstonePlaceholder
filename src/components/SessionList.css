@@ -1,0 +1,84 @@
+.session-list-container {
+  padding: 10px;
+  background-color: #e9ecef;
+  border-bottom: 1px solid #ddd;
+  flex-shrink: 0; /* Prevent this container from shrinking */
+}
+
+.session-list-container h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #343a40;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.new-chat-button-sidebar {
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background-color: #007bff;
+  color: white;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: center;
+  transition: background-color 0.2s;
+}
+
+.new-chat-button-sidebar:hover {
+  background-color: #0056b3;
+}
+
+.session-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 150px; /* Adjust as needed */
+  overflow-y: auto;
+}
+
+.session-item {
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 5px;
+  border: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.session-item:hover {
+  background-color: #e9ecef;
+}
+
+.session-item.active {
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+  font-weight: bold;
+}
+
+.session-title {
+  font-size: 14px;
+  color: #212529;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-date {
+  font-size: 11px;
+  color: #6c757d;
+  margin-top: 4px;
+}
+
+.session-preview {
+  font-size: 13px;
+  color: #495057;
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}

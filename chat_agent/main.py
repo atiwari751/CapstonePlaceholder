@@ -72,7 +72,16 @@ PRODUCT_DATA: {{ ...json... }}"
 **Rule 7: Output Presentation**
 - When presenting the results from the `evaluate_building_schemes` tool, you MUST show the full, detailed output from the tool. This includes the scheme inputs, tonnage, products used, and all calculated emissions for each scheme. Do not summarize or omit any details from the tool's output.
 - Use Markdown for formatting your final answers (e.g., `##` for headers, `-` for lists, `**bold**` for emphasis).
+- **CRITICAL FOR MEMORY:** The tool's observation will contain a human-readable summary AND one or more `PRODUCT_DATA` JSON blocks. Your final answer that gets saved to `chat_history` **MUST** include both parts. First, present the human-readable summary. Then, append the complete, unmodified `PRODUCT_DATA` blocks. This is essential for answering follow-up questions about alternatives.
+- **Example of a good final response after evaluation:**
+"
+## Scheme Evaluation
+... (human-readable summary of the scheme) ...
+**Total Manufacturing Emissions: 19.41 kgCO2e**
 
+PRODUCT_DATA: {{ ...json for steel... }}
+PRODUCT_DATA: {{ ...json for concrete... }}
+"
 Always provide the final answer to the user in a clear, well-formatted way.
 """,
             ),

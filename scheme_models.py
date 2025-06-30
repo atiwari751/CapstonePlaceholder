@@ -20,6 +20,7 @@ class SchemeEvaluations(BaseModel):
 class Scheme(BaseModel):
     """A building scheme with parameters and evaluations"""
     id: int = Field(description="Unique identifier for the scheme")
+    name: str = Field(description="Name of the scheme, e.g., 'Simple Rectangular Office'")
     parameters: SchemeParameters
     evaluations: Optional[SchemeEvaluations] = None
     

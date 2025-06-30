@@ -84,17 +84,6 @@
   align-items: center;
 }
 
-.new-query-button {
-  padding: 10px 15px;
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  white-space: nowrap;
-}
-
 .chat-form {
   flex: 1;
   display: flex;
@@ -117,10 +106,6 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 16px;
-}
-
-.new-query-button:hover:not(:disabled) {
-  background-color: #5a6268;
 }
 
 .chat-form button:hover:not(:disabled) {

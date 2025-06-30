@@ -20,7 +20,7 @@ const SchemeSidePanel = ({ scheme, isOpen, onClose }) => {
   return (
     <div className={`scheme-side-panel ${isOpen ? 'open' : ''}`}>
       <div className="side-panel-header">
-        <h2>Scheme {scheme.id || ''} Details</h2>
+        <h2>{scheme.name || `Scheme ${scheme.id || ''}`} Details</h2>
         <button className="close-panel-button" onClick={onClose}>×</button>
       </div>
       
