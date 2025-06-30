@@ -37,9 +37,9 @@ const SchemeFrame = ({ scheme, index, onSchemeClick }) => {
   return (
     <div 
       className="scheme-frame" 
-      onClick={() => onSchemeClick(safeScheme, index)}
+      onClick={() => onSchemeClick(scheme, index)}
     >
-      <div className="scheme-title">Scheme {safeScheme.id}</div>
+      <div className="scheme-title">{scheme.name || `Scheme ${scheme.id || index + 1}`}</div>
       <div className="scheme-canvas-container">
         <Canvas camera={{ position: [0, 2, 5], fov: 50 }}>
           <ambientLight intensity={0.5} />
