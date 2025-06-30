@@ -6,3 +6,4 @@ mcp_server.log
 sample_AiForm.py
 module/__pycache__
 tests/__pycache__
+node_modules 

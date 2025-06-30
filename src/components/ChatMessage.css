@@ -125,4 +125,6 @@
 .answer-content {
   font-size: 14px;
   line-height: 1.5;
+  white-space: pre-wrap; /* Preserve line breaks and spacing for markdown-like text */
+  word-wrap: break-word; /* Ensure long words don't overflow */
 } 

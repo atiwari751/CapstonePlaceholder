@@ -38,30 +38,40 @@ Your memory of the conversation is provided in the `chat_history`.
 
 **Your Core Task is to use tools to answer questions. Follow these rules strictly:**
 
-**Rule 1: Answering Building Questions**
-- **IF** the user asks about building options, case studies, or techniques (e.g., "low waste construction").
-- **THEN** you MUST use the `search_building_case_studies` tool. Do not use your general knowledge.
+**Rule 1: Handling Product Alternatives (CRITICAL First Check)**
+- **BEFORE using any tool**, you MUST check if the user is asking for 'more', 'other', or 'alternative' products.
+- **IF** they are, you MUST NOT use any tool.
+- **INSTEAD**, you must search the `chat_history` for a `PRODUCT_DATA` block from a previous turn.
+- **THEN**, parse the JSON in that block and present the 2nd and 3rd options from the `product_options` list.
+- It is a critical failure to use a tool when the user asks for alternatives and the `PRODUCT_DATA` is in the history.
 
-**Rule 2: Evaluating Schemes**
+**Rule 2: Finding Products (Initial Search)**
+- **IF** the user asks for a specific product for the first time (e.g., 'paint', 'windows'), and it's not a request for alternatives.
+- **THEN** you MUST use the `find_low_emission_product` tool. This tool returns the single best option and stores others in memory.
+- **MEMORY CRITICAL:** After the tool runs, your final output that gets saved to `chat_history` MUST contain the full `PRODUCT_DATA` block from the tool's observation.
+- You should present a human-friendly summary to the user, but the `PRODUCT_DATA` block must be included in your response to be saved in memory.
+- **Example of a good final response:** "The best option is X. Other options are available.
+PRODUCT_DATA: {{ ...json... }}"
+
+**Rule 3: Evaluating Schemes**
 - **IF** the user asks to 'evaluate', 'compare', or 'analyze' building schemes.
 - **THEN** you MUST use the `evaluate_building_schemes` tool.
 
-**Rule 3: Finding Products**
-- **IF** the user asks for specific products (e.g., 'paint', 'windows'), you MUST use the `find_low_emission_product` tool. This tool returns the single best option and stores others in memory.
-- **IF** the user asks for 'more' or 'alternatives' for a product, you MUST NOT use a tool. Instead, follow Rule 4 to retrieve the alternatives from memory.
+**Rule 4: Answering Building Questions**
+- **IF** the user asks about building options, case studies, or techniques (e.g., "low waste construction").
+- **THEN** you MUST use the `search_building_case_studies` tool. Do not use your general knowledge.
 
-**Rule 4: Answering from Memory (CRITICAL RULE)**
-- **IF** the user asks a follow-up question about a scheme, product, or result that is already in the `chat_history`.
-- **THEN** your task is to find the answer directly within the `chat_history` and provide it. Do not use any tools for this unless a new calculation is required.
+**Rule 5: Answering from Memory (General Follow-ups)**
+- **IF** the user asks a follow-up question about a scheme that is already in the `chat_history` (and it's not for product alternatives).
+- **THEN** your task is to find the answer directly within the `chat_history` and provide it. Do not use any tools for this.
 - **Example (Scheme Details):** If the user asks for "details of Square Bay", you must find the "## Square Bay" section in the `chat_history` and extract the "Scheme Inputs" from it to form your answer.
-- **Example (Product Alternatives):** If the user asks for "alternatives", you must find the `PRODUCT_DATA` block in the `chat_history`, parse the JSON, and present the 2nd and 3rd options from the list.
-- **MANDATORY:** It is a critical failure to use a tool or claim information is unavailable when the answer is already in the `chat_history`.
 
-**Rule 5: Calculations**
+**Rule 6: Calculations**
 - **IF** the user asks a simple math question, use the calculator tools.
 
-**Rule 6: Output Presentation**
+**Rule 7: Output Presentation**
 - When presenting the results from the `evaluate_building_schemes` tool, you MUST show the full, detailed output from the tool. This includes the scheme inputs, tonnage, products used, and all calculated emissions for each scheme. Do not summarize or omit any details from the tool's output.
+- Use Markdown for formatting your final answers (e.g., `##` for headers, `-` for lists, `**bold**` for emphasis).
 
 Always provide the final answer to the user in a clear, well-formatted way.
 """,
@@ -78,12 +88,10 @@ Always provide the final answer to the user in a clear, well-formatted way.
     agent = create_openai_tools_agent(llm, all_tools, prompt_template)
 
     # 4. Create the Agent Executor
-    memory = ConversationBufferMemory(return_messages=True, memory_key="chat_history")
+    # The agent is now stateless. Memory is managed per-session in the API server.
     agent_executor = AgentExecutor(
-        agent=agent, tools=all_tools, verbose=True, memory=memory
+        agent=agent, tools=all_tools, verbose=True
     )
-
-    # Load initial chat history from the memory if available
 
     return agent_executor
 
@@ -104,18 +112,21 @@ def run_chat():
         print(f"Please ensure {', '.join(required_vars)} are in your .env file.\n")
 
     agent_executor = create_agent_executor()
-    chat_history = []
+    # For command-line chat, we manage history manually in a list
+    chat_history_for_agent = []
 
     while True:
         user_input = input("\nUser: ")
         if user_input.lower() == "exit":
             print("Assistant: Goodbye!")
             break
-
-        response = agent_executor.invoke({"input": user_input})
+        
+        # Pass the history to the invoke method
+        response = agent_executor.invoke({"input": user_input, "chat_history": chat_history_for_agent})
         print(f"\nAssistant:\n{response['output']}")
 
-        chat_history.extend([HumanMessage(content=user_input), AIMessage(content=response["output"])])
+        # Manually update the history list
+        chat_history_for_agent.extend([HumanMessage(content=user_input), AIMessage(content=response["output"])])
 
 if __name__ == "__main__":
     run_chat()

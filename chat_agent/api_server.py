@@ -95,6 +95,33 @@ def run_agent_in_background(session_id: str, query: str):
             config={"callbacks": [callback_handler]}
         )
 
+        # After the agent runs, manually update the chat history in the session store.
+        # This ensures the full conversation, including tool outputs embedded in the
+        # AI message, is persisted for the next turn.
+        session_data = sessions[session_id] # Re-fetch data modified by callback
+        
+        # Clean the final answer for UI display, removing the PRODUCT_DATA block.
+        # The full response output is still saved to chat_history for agent memory.
+        final_answer_from_agent = session_data.get("final_answer")
+        if final_answer_from_agent:
+            # Remove PRODUCT_DATA for product searches
+            if "PRODUCT_DATA:" in final_answer_from_agent:
+                final_answer_from_agent = final_answer_from_agent.split("PRODUCT_DATA:")[0].strip()
+            # Remove SCHEME_DATA for scheme evaluations
+            if "SCHEME_DATA:" in final_answer_from_agent:
+                final_answer_from_agent = final_answer_from_agent.split("SCHEME_DATA:")[0].strip()
+            session_data["final_answer"] = final_answer_from_agent
+
+        session_data["chat_history"].append(
+            {"type": "human", "content": query}
+        )
+        session_data["chat_history"].append(
+            {"type": "ai", "content": response.get("output", "")}
+        )
+        
+        # Persist the updated history and any other changes from the callback
+        sessions[session_id] = session_data
+
     except Exception as e:
         logger.exception(f"Error during agent execution for session {session_id}: {e}")
         session_data = sessions.get(session_id, {}) # Use .get for safety
@@ -112,9 +139,13 @@ async def create_query(request: QueryRequest, background_tasks: BackgroundTasks)
 
     if session_id and session_id in sessions:
         logger.info(f"Continuing session {session_id} with query: '{request.query}'")
-        # Session exists, just update its status
+        # Session exists, update its status and reset turn-specific data
+        # to prevent showing stale results from the previous turn.
         session_data = sessions[session_id]
         session_data["status"] = "running"
+        session_data["results"] = {}
+        session_data["final_answer"] = None
+        session_data["error"] = None
         sessions[session_id] = session_data # Write back status change
     else:
         session_id = str(uuid.uuid4())

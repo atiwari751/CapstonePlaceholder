@@ -61,7 +61,7 @@ const ChatMessage = ({ message, isUser }) => {
           </>
         )}
       </div>
-      <div className="message-time">{message.timestamp}</div>
+      {message.timestamp && <div className="message-time">{message.timestamp}</div>}
     </div>
   );
 };

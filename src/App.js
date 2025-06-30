@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './App.css';
-import AgentSession from './components/AgentSession'; // Component to show agent's work
 // Import mock data from service instead of hardcoding
-import ChatMessage from './components/ChatMessage'; // Component to render a single chat message
+import ChatMessage from './components/ChatMessage'; // Used for both user and agent messages
 import SchemeGrid from './components/SchemeGrid'; // Component for 3D visualization
 
 // API URL for the backend
@@ -192,17 +191,12 @@ function App() {
             <div className="chat-log">
               {chatHistory.map((msg, index) => {
                 if (msg.type === 'human') {
-                  return <ChatMessage key={index} message={msg} />;
+                  // Pass isUser=true and map content to the 'text' prop expected by ChatMessage
+                  return <ChatMessage key={index} message={{ text: msg.content }} isUser={true} />;
                 }
                 if (msg.type === 'agent') {
-                  // Render the agent's work, including intermediate steps and final answer
-                  return <AgentSession 
-                    key={index}
-                    sessionId={sessionId}
-                    status={msg.status} 
-                    results={msg.results} 
-                    finalAnswer={msg.finalAnswer} 
-                  />;
+                  // The ChatMessage component handles rendering agent responses, including tool results and the final answer.
+                  return <ChatMessage key={index} message={msg} isUser={false} />;
                 }
                 return null;
               })}
@@ -211,23 +205,25 @@ function App() {
           
           {/* User Input Area - moved inside agent-area */}
           <div className="user-input-area">
-            {sessionId && (
-              <button className="new-query-button" onClick={handleNewQuery} disabled={isProcessing}>
-                New Chat
-              </button>
-            )}
-            <form onSubmit={handlePromptSubmit} className="chat-form">
-              <input
-                type="text"
-                value={currentPrompt}
-                onChange={(e) => setCurrentPrompt(e.target.value)}
-                placeholder="Enter your prompt here..."
-                disabled={isProcessing}
-              />
-              <button type="submit" disabled={isProcessing || !currentPrompt.trim()}>
-                {isProcessing ? "Processing..." : "Send"}
-              </button>
-            </form>
+            <div className="input-form-container">
+              {sessionId && (
+                <button className="new-query-button" onClick={handleNewQuery} disabled={isProcessing}>
+                  New Chat
+                </button>
+              )}
+              <form onSubmit={handlePromptSubmit} className="chat-form">
+                <input
+                  type="text"
+                  value={currentPrompt}
+                  onChange={(e) => setCurrentPrompt(e.target.value)}
+                  placeholder="Enter your prompt here..."
+                  disabled={isProcessing}
+                />
+                <button type="submit" disabled={isProcessing || !currentPrompt.trim()}>
+                  {isProcessing ? "Processing..." : "Send"}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
