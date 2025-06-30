@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './App.css';
-import SchemeGrid from './components/SchemeGrid';
-import AgentSession from './components/AgentSession';
+import AgentSession from './components/AgentSession'; // Component to show agent's work
 // Import mock data from service instead of hardcoding
-import { getAllSchemes } from './services/mockSchemeData';
+import ChatMessage from './components/ChatMessage'; // Component to render a single chat message
+import SchemeGrid from './components/SchemeGrid'; // Component for 3D visualization
 
 // API URL for the backend
 const API_URL = "http://localhost:8001"; // FastAPI backend URL
-
-
 
 function App() {
   // State for schemes/cuboids
@@ -18,12 +16,10 @@ function App() {
   const [error, setError] = useState(null);
   
   // Agent state
-  const [userPrompt, setUserPrompt] = useState('');
+  const [currentPrompt, setCurrentPrompt] = useState('');
   const [sessionId, setSessionId] = useState(null);
-  const [sessionStatus, setSessionStatus] = useState('idle');
-  const [sessionResults, setSessionResults] = useState({});
-  const [finalAnswer, setFinalAnswer] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
   const [pollingActive, setPollingActive] = useState(false);
 
   // Load schemes on component mount
@@ -31,8 +27,7 @@ function App() {
     // Only load mock schemes if there's no active session
     if (!sessionId) {
       try {
-        // Don't load any schemes initially - wait for agent results
-        setSchemes([]);
+        setSchemes([]); // Start with no schemes
         setLoading(false);
       } catch (err) {
         console.error("Error loading schemes:", err);
@@ -50,24 +45,37 @@ function App() {
       const response = await axios.get(`${API_URL}/session/${sessionId}`);
       const data = response.data;
       
-      // Update results
-      setSessionResults(data.results || {});
-      
-      // Update final answer
-      if (data.final_answer) {
-        setFinalAnswer(data.final_answer);
-      }
+      // Update the last message in chat history if it's an agent turn
+      setChatHistory(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.type === 'agent') {
+          // Create a new message object to ensure re-render
+          const updatedMessage = {
+            ...lastMessage,
+            status: data.status,
+            results: data.results || {},
+            finalAnswer: data.final_answer
+          };
+          return [...prev.slice(0, -1), updatedMessage];
+        }
+        return prev;
+      });
       
       // Update schemes - completely replace any existing schemes
+      // This state is separate and persists until a new chat starts.
       if (data.schemes && Array.isArray(data.schemes)) {
-        console.log("Received schemes:", data.schemes);
-        setSchemes(data.schemes);
+        // Ensure each scheme has a display-friendly name for the grid
+        const namedSchemes = data.schemes.map((scheme, index) => ({
+          ...scheme,
+          displayName: scheme.name || `Scheme ${index + 1}`
+        }));
+        setSchemes(namedSchemes);
       }
       
       // Check if processing is complete
       if (data.status === "completed" || data.status === "error") {
         setPollingActive(false);
-        setSessionStatus(data.status);
+        setIsProcessing(false); // Re-enable input when polling stops
         return true;
       }
       
@@ -76,6 +84,7 @@ function App() {
       console.error("Error polling results:", error);
       setError("Failed to get results. Please try again.");
       setPollingActive(false);
+      setIsProcessing(false); // Re-enable input on error
       return true;
     }
   }, [sessionId, pollingActive]);
@@ -99,62 +108,53 @@ function App() {
   const handlePromptSubmit = async (e) => {
     e.preventDefault();
     
-    if (!userPrompt.trim() || isProcessing) return;
+    const prompt = currentPrompt.trim();
+    if (!prompt || isProcessing) return;
     
     setIsProcessing(true);
+
+    // Add user's prompt and a placeholder for the agent's response to the history
+    setChatHistory(prev => [
+      ...prev, 
+      { type: 'human', content: prompt },
+      { type: 'agent', sessionId: sessionId, status: 'running', results: {}, finalAnswer: null } // Placeholder
+    ]);
     
     try {
-      // Try to connect to the real API
-      const response = await axios.post(`${API_URL}/query`, { query: userPrompt });
+      // If we have a session ID, send it to continue the conversation.
+      // Otherwise, the backend will create a new session.
+      const payload = { query: prompt };
+      if (sessionId) {
+        payload.session_id = sessionId;
+      }
+
+      const response = await axios.post(`${API_URL}/query`, payload);
       const data = response.data;
       
       setSessionId(data.session_id);
       setPollingActive(true);
-      setSessionStatus('running');
-      setSessionResults({});
-      setFinalAnswer(null);
-      
-      // Clear existing schemes when starting a new query
-      // We'll get new schemes from the agent API
-      setSchemes([]);
+
     } catch (error) {
       console.error("Error processing query:", error);
-      
-      // Fallback to mock data if API is not available
-      console.log("Using mock data instead");
-      
-      // Load mock schemes from the service
-      const mockSchemes = getAllSchemes();
-      setSchemes(mockSchemes);
-      
-      // Create a unique session ID
-      setSessionId("mock-session-" + Date.now());
-      setSessionStatus('completed');
-      
-      // Use empty results instead of hardcoded mock data
-      setSessionResults({});
-      setFinalAnswer("This is a mock response. The API server appears to be offline.");
+      const errorMessage = "An error occurred. The API server may be offline.";
+      setError(errorMessage);
+      setChatHistory(prev => [...prev, { type: 'ai', content: errorMessage }]);
       setIsProcessing(false);
+      setPollingActive(false);
     }
     
     // Clear the input field
-    setUserPrompt('');
+    setCurrentPrompt('');
   };
   
   // Handle starting a new query
   const handleNewQuery = () => {
     setSessionId(null);
-    setSessionStatus('idle');
-    setSessionResults({});
-    setFinalAnswer(null);
     setPollingActive(false);
     setIsProcessing(false);
-    
-    // Clear schemes instead of loading mock data
+    setChatHistory([]);
     setSchemes([]);
   };
-
-
 
   if (loading) {
     return <div className="loading">Loading schemes...</div>;
@@ -189,33 +189,42 @@ function App() {
           </div>
           
           <div className="agent-content">
-            {sessionId ? (
-              <AgentSession
-                sessionId={sessionId}
-                status={sessionStatus}
-                results={sessionResults}
-                finalAnswer={finalAnswer}
-                onNewQuery={handleNewQuery}
-              />
-            ) : (
-              <div className="agent-placeholder">
-                <p>Enter a prompt below to start a new session.</p>
-                <p>Try queries like "show me a house" or "design an office building".</p>
-              </div>
-            )}
+            <div className="chat-log">
+              {chatHistory.map((msg, index) => {
+                if (msg.type === 'human') {
+                  return <ChatMessage key={index} message={msg} />;
+                }
+                if (msg.type === 'agent') {
+                  // Render the agent's work, including intermediate steps and final answer
+                  return <AgentSession 
+                    key={index}
+                    sessionId={sessionId}
+                    status={msg.status} 
+                    results={msg.results} 
+                    finalAnswer={msg.finalAnswer} 
+                  />;
+                }
+                return null;
+              })}
+            </div>
           </div>
           
-          {/* User Input Area */}
+          {/* User Input Area - moved inside agent-area */}
           <div className="user-input-area">
-            <form onSubmit={handlePromptSubmit}>
+            {sessionId && (
+              <button className="new-query-button" onClick={handleNewQuery} disabled={isProcessing}>
+                New Chat
+              </button>
+            )}
+            <form onSubmit={handlePromptSubmit} className="chat-form">
               <input
                 type="text"
-                value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
+                value={currentPrompt}
+                onChange={(e) => setCurrentPrompt(e.target.value)}
                 placeholder="Enter your prompt here..."
                 disabled={isProcessing}
               />
-              <button type="submit" disabled={isProcessing || !userPrompt.trim()}>
+              <button type="submit" disabled={isProcessing || !currentPrompt.trim()}>
                 {isProcessing ? "Processing..." : "Send"}
               </button>
             </form>

@@ -19,15 +19,20 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 # Agent and tool imports
 from .main import create_agent_executor
 from .callbacks import SessionCallbackHandler
+from langchain_core.messages import AIMessage, HumanMessage
 from scheme_service import scheme_service
 
 # --- Pydantic Models ---
 class QueryRequest(BaseModel):
     query: str
+    session_id: Optional[str] = None
 
 class QueryResponse(BaseModel):
     session_id: str
-    message: str
+
+class ChatMessage(BaseModel):
+    type: str
+    content: str
 
 class SessionStatusResponse(BaseModel):
     status: str
@@ -35,6 +40,7 @@ class SessionStatusResponse(BaseModel):
     final_answer: Optional[str] = None
     schemes: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
+    chat_history: Optional[List[ChatMessage]] = None
 
 # --- In-memory Session Storage ---
 # sessions: Dict[str, Dict[str, Any]] = {} # Replaced with shelve
@@ -67,23 +73,28 @@ def run_agent_in_background(session_id: str, query: str):
     """
     try:
         logger.info(f"Starting agent run for session {session_id} with query: '{query}'")
-        # Retrieve the session data dictionary from the shelf
         session_data = sessions[session_id]
-        
+
+        # Reconstruct chat history from stored dicts into LangChain message objects
+        chat_history_for_agent = []
+        raw_history = session_data.get("chat_history", [])
+        for msg_data in raw_history:
+            if msg_data.get("type") == "human":
+                chat_history_for_agent.append(HumanMessage(content=msg_data.get("content")))
+            elif msg_data.get("type") == "ai":
+                chat_history_for_agent.append(AIMessage(content=msg_data.get("content")))
+
         # Create a callback handler for this specific session
-        callback_handler = SessionCallbackHandler(session_data)
-        
+        # It will write updates directly to the shelve DB
+        callback_handler = SessionCallbackHandler(sessions, session_id)
+
         # Invoke the agent with the query and the session-specific callback
-        agent_executor.invoke(
-            {"input": query},
+        # The history provides context for the conversation
+        response = agent_executor.invoke(
+            {"input": query, "chat_history": chat_history_for_agent},
             config={"callbacks": [callback_handler]}
         )
 
-        # IMPORTANT: Re-assign the modified session_data back to the shelf to persist changes.
-        # shelve does not track in-place mutations of the objects it stores.
-        sessions[session_id] = session_data
-        logger.info(f"Agent run completed and session {session_id} saved.")
-        
     except Exception as e:
         logger.exception(f"Error during agent execution for session {session_id}: {e}")
         session_data = sessions.get(session_id, {}) # Use .get for safety
@@ -97,23 +108,31 @@ async def create_query(request: QueryRequest, background_tasks: BackgroundTasks)
     """
     Starts a new agent session.
     """
-    logger.info(f"Received new query: '{request.query}'")
-    session_id = str(uuid.uuid4())
-    
-    # Initialize session data
-    sessions[session_id] = {
-        "status": "running",
-        "results": {},
-        "final_answer": None,
-        "schemes": [],
-        "error": None,
-    }
-    logger.info(f"Created new persistent session: {session_id}")
-    
+    session_id = request.session_id
+
+    if session_id and session_id in sessions:
+        logger.info(f"Continuing session {session_id} with query: '{request.query}'")
+        # Session exists, just update its status
+        session_data = sessions[session_id]
+        session_data["status"] = "running"
+        sessions[session_id] = session_data # Write back status change
+    else:
+        session_id = str(uuid.uuid4())
+        logger.info(f"Received new query, creating session {session_id}: '{request.query}'")
+        # Initialize new session data
+        sessions[session_id] = {
+            "status": "running",
+            "results": {},
+            "final_answer": None,
+            "schemes": [],
+            "error": None,
+            "chat_history": [] # Initialize chat history for new sessions
+        }
+
     # Add the agent execution to background tasks
     background_tasks.add_task(run_agent_in_background, session_id, request.query)
     
-    return {"session_id": session_id, "message": "Query processing started."}
+    return {"session_id": session_id}
 
 @app.get("/session/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(session_id: str):
@@ -127,7 +146,13 @@ async def get_session_status(session_id: str):
         
     session_data = sessions[session_id]
 
-    return session_data
+    # Create a copy to return as JSON. The chat_history is already serializable.
+    response_data = session_data.copy()
+    # Ensure the chat_history key exists for the Pydantic model, even if empty.
+    if "chat_history" not in response_data:
+        response_data["chat_history"] = []
+
+    return response_data
 
 @app.on_event("startup")
 async def startup_event():

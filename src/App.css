@@ -36,6 +36,13 @@
   background-color: #f8f9fa;
 }
 
+.session-id-display {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 5px;
+  font-family: monospace;
+}
+
 .agent-header {
   padding: 15px;
   border-bottom: 1px solid #ddd;
@@ -55,6 +62,11 @@
   overflow-x: hidden;
 }
 
+.chat-log {
+  display: flex;
+  flex-direction: column;
+}
+
 .placeholder-content {
   min-height: 200px;
 }
@@ -63,15 +75,33 @@
 .user-input-area {
   padding: 15px;
   border-top: 1px solid #ddd;
-  background-color: #fff;
+  background-color: #f8f9fa;
 }
 
-.user-input-area form {
+.input-form-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.new-query-button {
+  padding: 10px 15px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.chat-form {
+  flex: 1;
   display: flex;
   gap: 10px;
 }
 
-.user-input-area input {
+.chat-form input {
   flex: 1;
   padding: 10px;
   border: 1px solid #ccc;
@@ -79,7 +109,7 @@
   font-size: 16px;
 }
 
-.user-input-area button {
+.chat-form button {
   padding: 10px 20px;
   background-color: #4CAF50;
   color: white;
@@ -89,7 +119,11 @@
   font-size: 16px;
 }
 
-.user-input-area button:hover {
+.new-query-button:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.chat-form button:hover:not(:disabled) {
   background-color: #45a049;
 }
 

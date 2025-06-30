@@ -52,7 +52,7 @@ const FinalAnswer = ({ answer }) => {
 };
 
 // Main component for displaying the agent session
-const AgentSession = ({ sessionId, status, results, finalAnswer, onNewQuery }) => {
+const AgentSession = ({ sessionId, status, results, finalAnswer }) => {
   // Sort results by key to ensure they appear in order
   const sortedResults = Object.entries(results || {}).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -80,12 +80,7 @@ const AgentSession = ({ sessionId, status, results, finalAnswer, onNewQuery }) =
       )}
 
       {finalAnswer && (
-        <>
-          <FinalAnswer answer={finalAnswer} />
-          <button className="new-query-button" onClick={onNewQuery}>
-            Start New Query
-          </button>
-        </>
+        <FinalAnswer answer={finalAnswer} />
       )}
     </div>
   );

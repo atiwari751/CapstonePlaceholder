@@ -63,7 +63,7 @@ def evaluate_building_schemes(description: str, number_of_schemes: int = 2) -> s
         schemes = schemes_data["schemes"]
         if not isinstance(schemes, list):
             raise ValueError("LLM did not return a list of schemes.")
-    except (json.JSONDecodeError, KeyError, ValueError) as e:
+    except (json.JSONDecodeError, KeyError, ValueError) as e:  # Specific exceptions
         return f"Failed to generate or parse valid building schemes from the LLM. Error: {e}"
     except Exception as e:
         return f"An unexpected error occurred while generating schemes: {e}"
@@ -85,7 +85,7 @@ def evaluate_building_schemes(description: str, number_of_schemes: int = 2) -> s
             scheme['steel_tonnage'] = tonnage_data.steel_tonnage 
             scheme['concrete_tonnage'] = tonnage_data.concrete_tonnage
             scheme_results.append(scheme)
-        except Exception as e:
+        except Exception as e:  # Catch-all for issues with a specific scheme
             return f"Error evaluating {scheme['name']} with AI Form Schemer: {e}"
 
     # b. Fetch low-emission structural steel and concrete products
