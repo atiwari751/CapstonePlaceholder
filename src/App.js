@@ -7,7 +7,7 @@ import SessionList from './components/SessionList'; // Component to show chat hi
 import SchemeGrid from './components/SchemeGrid'; // Component for 3D visualization
 
 // API URL for the backend
-const API_URL = "http://localhost:8001"; // FastAPI backend URL
+const API_URL = "/api"; // FastAPI backend URL
 
 function App() {
   // State for schemes/cuboids
