@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
 
+# Add the parent directory to the path to allow importing mcp_server
+sys.path.append(str(Path(__file__).parent.parent))
+
 # This client simulates interaction with the mcp_server.
 # For simplicity, it directly imports and calls the tool functions.
 # In a real-world scenario with separate processes, this would use

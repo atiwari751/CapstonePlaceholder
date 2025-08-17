@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
 # Agent and tool imports
-from .main import create_agent_executor
-from .callbacks import SessionCallbackHandler
+from main import create_agent_executor
+from callbacks import SessionCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage
 from scheme_service import scheme_service
 

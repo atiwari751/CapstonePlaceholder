@@ -4,7 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import json
 import os
 
-from .client import mcp_client
+from client import mcp_client
 
 
 # Tool 1: Search documents
@@ -115,13 +115,13 @@ def evaluate_building_schemes(description: str, number_of_schemes: int = 2) -> s
         output_lines.append(f"   - Scheme Inputs:")
         for key, value in scheme.get('inputs', {}).items():
             output_lines.append(f"     - {key.replace('_', ' ').title()}: {value}")
-        output_lines.append(f"   - Steel Tonnage: {scheme['steel_tonnage']:.2f} kg")
-        output_lines.append(f"   - Concrete Tonnage: {scheme['concrete_tonnage']:.2f} kg")
+        output_lines.append(f"   - Steel Tonnage: {scheme['steel_tonnage']:.2f} kg/m²")
+        output_lines.append(f"   - Concrete Tonnage: {scheme['concrete_tonnage']:.2f} kg/m²")
         output_lines.append(f"   - Using Steel Product: '{lowest_emission_steel.name}' from {lowest_emission_steel.manufacturing_country} ({lowest_emission_steel.manufacturing_emissions} kgCO2e/{lowest_emission_steel.declared_unit})")
         output_lines.append(f"   - Using Concrete Product: '{lowest_emission_concrete.name}' from {lowest_emission_concrete.manufacturing_country} ({lowest_emission_concrete.manufacturing_emissions} kgCO2e/{lowest_emission_concrete.declared_unit})")
-        output_lines.append(f"   - Calculated Steel Emissions: {total_steel_emissions:,.2f} kgCO2e")
-        output_lines.append(f"   - Calculated Concrete Emissions: {total_concrete_emissions:,.2f} kgCO2e")
-        output_lines.append(f"   - **Total Manufacturing Emissions: {total_emissions:,.2f} kgCO2e**")
+        output_lines.append(f"   - Calculated Steel Emissions: {total_steel_emissions:,.2f} kgCO2e/m²")
+        output_lines.append(f"   - Calculated Concrete Emissions: {total_concrete_emissions:,.2f} kgCO2e/m²")
+        output_lines.append(f"   - **Total Manufacturing Emissions: {total_emissions:,.2f} kgCO2e/m²")
 
         # Store scheme data for memory retrieval
         output_data["schemes"].append(scheme)
